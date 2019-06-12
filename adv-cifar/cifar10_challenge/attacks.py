@@ -43,39 +43,15 @@ class L2OPAttack:
 
         self.grad = tf.gradients(loss, model.x_input)[0]
 
-    def perturb(self, x_nat, y, sess):
-        """Given a set of examples (x_nat, y), returns a set of adversarial
-           examples within epsilon of x_nat in l_infinity norm."""
-        if self.rand:
-            x = x_nat + np.random.uniform(-self.epsilon, self.epsilon, x_nat.shape)  # rewrite in tensorflow
-            x = np.clip(x, 0, 255)  # ensure valid pixel range   # tf clip_by_value
-        else:
-            x = np.copy(x_nat)
-
-        for i in range(self.num_steps):
-            grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
-                                                  self.model.y_input: y})
-
-            x = np.add(x, self.step_size * np.sign(grad), out=x, casting='unsafe')  # tf.math.add
-
-            x = np.clip(x, x_nat - self.epsilon, x_nat + self.epsilon)  #
-            x = np.clip(x, 0, 255)  # ensure valid pixel range
-
-        # return x
-
-
-    def opmaxmin(self, sess, net, gan, eps, im_size=784, embed_feats=256, num_images=50, z_lr=5e-3, lambda_lr=1e-4,
+    def perturb(self, sess, net, gan, eps, im_size=784, embed_feats=256, num_images=50, z_lr=5e-3, lambda_lr=1e-4,
              num_steps=1000,
              batch_num=None, ind=None):
-        softmax = ch.nn.Softmax()
-        logsoftmax = ch.nn.LogSoftmax()
 
         BATCH_SIZE = 1
 
-        batch1 = ch.zeros((num_images, 1, 28, 28)).cuda()
-        batch2 = ch.zeros((num_images, 1, 28, 28)).cuda()
-        is_valid = ch.zeros(num_images).cuda()
-        count = 0
+        batch1 = tf.zeros((num_images, 1, 28, 28))
+        batch2 = tf.zeros((num_images, 1, 28, 28))
+        is_valid = tf.zeros(num_images)
         EPS = eps
         for i in range(num_images // BATCH_SIZE):
             z1 = tf.Variable(tf.random.uniform([BATCH_SIZE, embed_feats]))
@@ -85,13 +61,10 @@ class L2OPAttack:
 
             lambda_ = tf.Variable(1e0 * tf.ones([z1.shape[0], 1]))
 
-            total_loss = 0
-
             opt1 = tf.train.GradientDescentOptimizer(z_lr)
             opt2 = tf.train.GradientDescentOptimizer(lambda_lr)
 
             for j in range(num_steps):
-
                 x1 = gan(z1)
                 x2 = gan(z2)
                 distance_mat = tf.norm(tf.reshape(x1 - x2, (x1.shape[0], -1)), axis=-1, keep_dims=False) - EPS * ones
@@ -99,13 +72,10 @@ class L2OPAttack:
                 net_res1 = sess.run(net.predictions, feed_dict={self.model.x_input: x1})
                 net_res2 = sess.run(net.predictions, feed_dict={self.model.x_input: x2})
 
-                # print('Cross entropy:%f \t distance=%f \t lambda=%f'%(ce(cla(x1),cla(x2)),distance_mat,lambda_))
-
-                is_adv = 1 - (net_res1 == net_res2).float()
-                is_feasible = (distance_mat <= 0).float()
-                not_valid = 1 - (is_adv * is_feasible)
+                is_adv = tf.cast(1 - (net_res1 == net_res2), tf.float32)
+                is_feasible = tf.cast((distance_mat <= 0), tf.float32)
+                not_valid = tf.cast(1 - (is_adv * is_feasible), tf.float32)
                 if ch.sum(is_adv * is_feasible) == BATCH_SIZE:
-                    #                 ind = (ch.abs(net_res1 - net_res2)*is_valid*is_feasible_mat).argmax(0)
                     batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
                     batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
@@ -116,22 +86,23 @@ class L2OPAttack:
                 net_pre2 = sess.run(net.pre_softmax, feed_dict={self.model.x_input: x2})
 
                 # calculate loss1, update opt1
-                loss1 = 0
+                loss1 = (-1.* tf.reduce_sum(ce(net_pre1, net_pre2), reduction_indices=None)*not_valid) +\
+                        tf.reduce_sum(lambda_ * distance_mat*not_valid) + 1e-4*tf.reduce_sum(tf.norm(z1, axis=-1)*not_valid) +\
+                        1e-4*tf.reduce_sum(tf.norm(z2,axis=-1)*not_valid)/ch.sum(not_valid)
+
                 opt1.minimize(loss1, var_list=[z1, z2])
 
-                loss2 = -1. * tf.reduce_mean(lambda_ * distance_mat * (not_valid))
+                loss2 = -1. * tf.reduce_mean(lambda_ * distance_mat * not_valid)
                 opt2.minimize(loss2, var_list=[lambda_])
 
-                # update opt2
             batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
             batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
             is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = is_adv * is_feasible
 
-        count = ch.sum(is_valid)
+        count = tf.reduce_sum(is_valid)
         print('number of adversarial pairs found:%d\n' % (count))
 
-        return batch1.detach(), batch2.detach(), is_valid
-
+        return batch1, batch2, is_valid
 
 
 if __name__ == '__main__':
