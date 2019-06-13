@@ -9,7 +9,6 @@ from __future__ import print_function
 
 import tensorflow as tf
 import numpy as np
-import torch as ch
 import tensorflow_hub as hub
 
 def ce(y_, y):
@@ -20,10 +19,10 @@ class L2OPAttack:
     def __init__(self):
         """overpowered attack using max-min optimization"""
 
-    def perturb(self, sess, net, gan, eps, embed_feats=256, num_images=50, z_lr=5e-3, lambda_lr=1e-4,
+    def perturb(self, sess, net, gan, eps, embed_feats=128, num_images=128, z_lr=5e-3, lambda_lr=1e-4,
              num_steps=1000):
 
-        BATCH_SIZE = 1
+        BATCH_SIZE = 64
 
         batch1 = tf.zeros((num_images, 3, 28, 28))
         batch2 = tf.zeros((num_images, 3, 28, 28))
@@ -42,7 +41,10 @@ class L2OPAttack:
             opt1 = tf.train.GradientDescentOptimizer(z_lr)
             opt2 = tf.train.GradientDescentOptimizer(lambda_lr)
 
+            sess.run(tf.global_variables_initializer())
+
             for j in range(num_steps):
+                print("Steps: ", j)
                 # generate images
                 x1 = gan(z1, signature="generator")
                 x2 = gan(z2, signature="generator")
@@ -60,7 +62,8 @@ class L2OPAttack:
                 is_adv = tf.cast(1 - (net_res1 == net_res2), tf.float32)
                 is_feasible = tf.cast((distance_mat <= 0), tf.float32)
                 not_valid = tf.cast(1 - (is_adv * is_feasible), tf.float32)
-                if ch.sum(is_adv * is_feasible) == BATCH_SIZE:
+                if tf.reduce_sum(is_adv * is_feasible) == BATCH_SIZE:
+
                     batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
                     batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
@@ -69,15 +72,15 @@ class L2OPAttack:
                 # calculate loss1, update opt1
                 loss1 = (-1.* tf.reduce_sum(ce(net_pre1, net_pre2), reduction_indices=None)*not_valid) +\
                         tf.reduce_sum(lambda_ * distance_mat*not_valid) + 1e-4*tf.reduce_sum(tf.norm(z1, axis=-1)*not_valid) +\
-                        1e-4*tf.reduce_sum(tf.norm(z2,axis=-1)*not_valid)/ch.sum(not_valid)
+                        1e-4*tf.reduce_sum(tf.norm(z2,axis=-1)*not_valid)/tf.reduce_sum(not_valid)
 
-                opt1.minimize(loss1, var_list=[z1, z2])
+                opt_step1 = opt1.minimize(loss1, var_list=[z1, z2])
 
                 loss2 = -1. * tf.reduce_mean(lambda_ * distance_mat * not_valid)
-                opt2.minimize(loss2, var_list=[lambda_])
+                opt_step2 = opt2.minimize(loss2, var_list=[lambda_])
 
                 # update latent code
-                sess.run([opt1, opt2])
+                sess.run([opt_step1, opt_step2])
 
             batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
             batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
@@ -94,6 +97,7 @@ if __name__ == '__main__':
     import sys
     import math
 
+    sys.path.append("/tmp/pycharm_project_870/adv-cifar/cifar10_challenge")
     from model import Model
 
     with open('config.json') as config_file:
@@ -106,20 +110,12 @@ if __name__ == '__main__':
 
     model = Model(mode='eval')
     attack = L2OPAttack()
+
     saver = tf.train.Saver()
 
     with tf.Session() as sess:
         # Restore the checkpoint
         saver.restore(sess, model_file)
-
-        # Iterate over the samples batch-by-batch
-        num_train_examples = config['num_eval_examples']
-        train_batch_size = config['eval_batch_size']
-        num_batches = int(math.ceil(num_train_examples / train_batch_size))
-
-        x_adv = []  # adv accumulator
-
-        print('Iterating over {} batches'.format(num_batches))
 
         batch_size = 50
         z_dim = 128
