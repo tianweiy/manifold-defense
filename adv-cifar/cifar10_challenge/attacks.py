@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow_hub as hub
 
 def ce(y_, y):
-    return tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
+    return tf.reduce_sum(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[-1]))
 
 
 class L2OPAttack:
@@ -24,8 +24,8 @@ class L2OPAttack:
 
         BATCH_SIZE = 64
 
-        batch1 = tf.zeros((num_images, 3, 28, 28))
-        batch2 = tf.zeros((num_images, 3, 28, 28))
+        batch1 = tf.zeros((num_images, 3, 32, 32))
+        batch2 = tf.zeros((num_images, 3, 32, 32))
         is_valid = tf.zeros(num_images)
         EPS = eps
 
@@ -38,10 +38,9 @@ class L2OPAttack:
 
             lambda_ = tf.Variable(1e0 * tf.ones([z1.shape[0], 1]))
 
-            opt1 = tf.train.GradientDescentOptimizer(z_lr)
-            opt2 = tf.train.GradientDescentOptimizer(lambda_lr)
+            opt1 = tf.train.MomentumOptimizer(z_lr, momentum=0.9)
+            opt2 = tf.train.MomentumOptimizer(lambda_lr, momentum=0.9)
 
-            sess.run(tf.global_variables_initializer())
 
             for j in range(num_steps):
                 print("Steps: ", j)
@@ -52,8 +51,8 @@ class L2OPAttack:
                 distance_mat = tf.norm(tf.reshape(x1 - x2, (x1.shape[0], -1)), axis=-1, keep_dims=False) - EPS * ones
 
                 # pre-softmax logits
-                net_pre1 = net.forward(x1)
-                net_pre2 = net.forward(x2)
+                net_pre1 = tf.nn.softmax(net.forward(x1))
+                net_pre2 = tf.nn.softmax(net.forward(x2))
 
                 # predictecd labels
                 net_res1 = tf.argmax(net_pre1, axis=-1)
@@ -79,8 +78,14 @@ class L2OPAttack:
                 loss2 = -1. * tf.reduce_mean(lambda_ * distance_mat * not_valid)
                 opt_step2 = opt2.minimize(loss2, var_list=[lambda_])
 
+                if i == 0 and j == 0:
+                    sess.run(tf.global_variables_initializer())
+
                 # update latent code
                 sess.run([opt_step1, opt_step2])
+                print(sess.run([net_res1, net_res2]))
+                print(sess.run([-tf.reduce_sum(net_pre1 * tf.log(net_pre2), reduction_indices=[-1])]))
+                print(sess.run(tf.reduce_sum(distance_mat)))
 
             batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
             batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
@@ -95,9 +100,9 @@ class L2OPAttack:
 if __name__ == '__main__':
     import json
     import sys
+    import os
     import math
 
-    sys.path.append("/tmp/pycharm_project_870/adv-cifar/cifar10_challenge")
     from model import Model
 
     with open('config.json') as config_file:
@@ -117,9 +122,6 @@ if __name__ == '__main__':
         # Restore the checkpoint
         saver.restore(sess, model_file)
 
-        batch_size = 50
-        z_dim = 128
-
         gan = hub.Module("https://tfhub.dev/google/compare_gan/model_13_cifar10_resnet_cifar/1")
 
         batch1, batch2, is_valid = attack.perturb(sess, model, gan, config['epsilon'])
@@ -127,8 +129,8 @@ if __name__ == '__main__':
         print('Storing examples')
         path = config['store_adv_path']
         batch1 = np.concatenate(batch1, axis=0)
-        np.save(path, x_adv)
+        np.save(os.path.join(path, "batch1.npy"), batch1)
 
         batch2 = np.concatenate(batch2, axis=0)
-        np.save(path, batch2)
+        np.save(os.path.join(path, "batch2.npy"), batch2)
         print('Examples stored in {}'.format(path))

@@ -114,7 +114,7 @@ if args.opt == "sgd":
     scheduler = optim.lr_scheduler.MultiStepLR(opt, milestones=[50,100,150,500], gamma=0.1)
 elif args.opt == "adam":
     opt = optim.Adam(param_set, lr=args.sgd_lr)
-    scheduler = optim.lr_scheduler.MultiStepLR(opt, milestones=[args.num_epochs+1], gamma=0.1)
+    scheduler = optim.lr_scheduler.MultiStepLR(opt, milestones=[args.num_epochs+1], gamma=0.1)   # lr for mnist is 1e-4, 1e-5
 elif args.opt == 'yf':
     opt = YFOptimizer(param_set, lr=args.sgd_lr, clip_thresh=None, adapt_clip=False)
     #scheduler = optim.lr_scheduler.MultiStepLR(opt, milestones=[args.num_epochs+1], gamma=0.1)
@@ -186,7 +186,7 @@ for ep in range(1,args.num_epochs+1):
         
 
         print("###### EPOCH {0} COMPLETE ######".format(ep))
-        print("Adversarial Validation Accuracy: %f" % (val_num_correct/val_num_total).cpu().item())
+        print("Adversarial Validation Accuracy: %f" % (val_num_correct/val_num_total).cpu().item()  )
         print("############################")
     
     if val_num_correct/val_num_total > best_adv_acc:
