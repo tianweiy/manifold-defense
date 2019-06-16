@@ -15,7 +15,7 @@ import numpy as np
 
 from model import Model
 import cifar10_input
-from pgd_attack import LinfPGDAttack
+from pgd_attack import L2PGDAttack
 
 with open('config.json') as config_file:
     config = json.load(config_file)
@@ -51,10 +51,10 @@ learning_rate = tf.train.piecewise_constant(
 total_loss = model.mean_xent + weight_decay * model.weight_decay_loss
 train_step = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(
     total_loss,
-    global_step=global_step)    # need to modify this for attack + See optimization-based attacks
+    global_step=global_step)    # need to modify this for attack +d See optimization-based attacks
 
 # Set up adversary
-attack = LinfPGDAttack(model,
+attack = L2PGDAttack(model,
                        config['epsilon'],
                        config['num_steps'],
                        config['step_size'],
@@ -72,7 +72,7 @@ if not os.path.exists(model_dir):
 # - train of different runs
 # - eval of different runs
 
-saver = tf.train.Saver(max_to_keep=3)
+saver = tf.train.Saver(max_to_keep=5)
 tf.summary.scalar('accuracy adv train', model.accuracy)
 tf.summary.scalar('accuracy adv', model.accuracy)
 tf.summary.scalar('xent adv train', model.xent / batch_size)
