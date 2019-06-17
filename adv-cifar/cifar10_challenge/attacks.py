@@ -64,13 +64,12 @@ class L2OPAttack:
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
         self.opt_step2 = self.opt2.minimize(loss2, var_list=[self.lambda_])
 
-    def perturb(self, sess, net, gan, eps, num_images=128,
+    def perturb(self, sess, eps, num_images=128,
              num_steps=1000):
 
         batch1 = tf.zeros((num_images, 3, 32, 32))
         batch2 = tf.zeros((num_images, 3, 32, 32))
         is_valid = tf.zeros(num_images)
-        EPS = eps
 
         for i in range(num_images // BATCH_SIZE):
             # sample two latent code
