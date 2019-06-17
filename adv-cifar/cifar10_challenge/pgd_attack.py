@@ -115,7 +115,7 @@ class L2PGDAttack:
             eta = random_lp_vector(tf.shape(x_nat),
                                    tf.cast(self.epsilon, x_nat.dtype),
                                    dtype=x_nat.dtype)
-            x = x_nat + eta.eval(sess)
+            x = x_nat + eta.eval()
             x = np.clip(x, 0, 255)
         else:
             x = np.copy(x_nat)
@@ -128,7 +128,7 @@ class L2PGDAttack:
 
             # project back to l2 ball
             avoid_zero_div = 1e-12
-            reduc_ind = list(xrange(1, len(grad.shape)))
+            reduc_ind = tuple(xrange(1, len(grad.shape)))
             norm = np.sqrt(np.maximum(avoid_zero_div,
                                       np.sum(np.square(grad),
                                              reduc_ind,
