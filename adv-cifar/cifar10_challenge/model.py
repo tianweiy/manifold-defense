@@ -96,7 +96,7 @@ class Model(object):
       self.mean_xent = tf.reduce_mean(self.y_xent)
       self.weight_decay_loss = self._decay()
 
-  def forward(self, x_input):
+  def _forward(self, x_input):
     assert self.mode == 'train' or self.mode == 'eval'
     """Build the core model within the graph."""
     with tf.variable_scope('input', reuse=True):

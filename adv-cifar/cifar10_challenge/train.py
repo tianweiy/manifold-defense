@@ -15,7 +15,7 @@ import numpy as np
 
 from model import Model
 import cifar10_input
-from pgd_attack import L2PGDAttack
+from pgd_attack import L2PGDAttack, LinfPGDAttack
 
 with open('config.json') as config_file:
     config = json.load(config_file)
@@ -54,7 +54,7 @@ train_step = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(
     global_step=global_step)  # need to modify this for attack +d See optimization-based attacks
 
 # Set up adversary
-attack = L2PGDAttack(model,
+attack = LinfPGDAttack(model,
                      config['epsilon'],
                      config['num_steps'],
                      config['step_size'],
@@ -73,6 +73,7 @@ if not os.path.exists(model_dir):
 # - eval of different runs
 
 saver = tf.train.Saver()
+# saver = tf.train.import_meta_graph("./models/adv_trained/checkpoint-1000.meta.tmpf3ac6c9416514c0698d28ea156ebf732")
 tf.summary.scalar('accuracy adv train', model.accuracy)
 tf.summary.scalar('accuracy adv', model.accuracy)
 tf.summary.scalar('xent adv train', model.xent / batch_size)
@@ -89,6 +90,8 @@ with tf.Session() as sess:
 
     # Initialize the summary writer, global variables, and our time counter.
     summary_writer = tf.summary.FileWriter(model_dir, sess.graph)
+    
+    # saver.restore(sess, "./models/adv_trained/checkpoint")
     sess.run(tf.global_variables_initializer())
     training_time = 0.0
 
