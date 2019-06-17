@@ -110,7 +110,7 @@ class Model(object):
     activate_before_residual = [True, False, False]
     res_func = self._residual
 
-    filters = [16, 160, 320, 640]
+    filters = [16, 16, 32, 64]
 
     # Update hps.num_residual_units to 9
 

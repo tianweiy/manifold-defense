@@ -13,178 +13,192 @@ from six.moves import xrange
 
 import cifar10_input
 
+
+def random_lp_vector(shape, eps, dtype=tf.float32, seed=None):
+    dim = tf.reduce_prod(shape[1:])
+
+    x = tf.random_normal((shape[0], dim), dtype=dtype, seed=seed)
+    norm = tf.sqrt(tf.reduce_sum(tf.square(x), axis=-1, keepdims=True))
+
+    w = tf.pow(tf.random.uniform((shape[0], 1), dtype=dtype, seed=seed),
+               1.0 / tf.cast(dim, dtype))
+    r = eps * tf.reshape(w * x / norm, shape)
+
+    return r
+
+
 class LinfPGDAttack:
-  def __init__(self, model, epsilon, num_steps, step_size, random_start, loss_func):
-    """Attack parameter initialization. The attack performs k steps of
-       size a, while always staying within epsilon from the initial
-       point."""
-    self.model = model
-    self.epsilon = epsilon
-    self.num_steps = num_steps
-    self.step_size = step_size
-    self.rand = random_start
+    def __init__(self, model, epsilon, num_steps, step_size, random_start, loss_func):
+        """Attack parameter initialization. The attack performs k steps of
+           size a, while always staying within epsilon from the initial
+           point."""
+        self.model = model
+        self.epsilon = epsilon
+        self.num_steps = num_steps
+        self.step_size = step_size
+        self.rand = random_start
 
-    if loss_func == 'xent':
-      loss = model.xent
-    elif loss_func == 'cw':
-      label_mask = tf.one_hot(model.y_input,
-                              10,
-                              on_value=1.0,
-                              off_value=0.0,
-                              dtype=tf.float32)
-      correct_logit = tf.reduce_sum(label_mask * model.pre_softmax, axis=1)
-      wrong_logit = tf.reduce_max((1-label_mask) * model.pre_softmax - 1e4*label_mask, axis=1)
-      loss = -tf.nn.relu(correct_logit - wrong_logit + 50)
-    else:
-      print('Unknown loss function. Defaulting to cross-entropy')
-      loss = model.xent
+        if loss_func == 'xent':
+            loss = model.xent
+        elif loss_func == 'cw':
+            label_mask = tf.one_hot(model.y_input,
+                                    10,
+                                    on_value=1.0,
+                                    off_value=0.0,
+                                    dtype=tf.float32)
+            correct_logit = tf.reduce_sum(label_mask * model.pre_softmax, axis=1)
+            wrong_logit = tf.reduce_max((1-label_mask) * model.pre_softmax - 1e4*label_mask, axis=1)
+            loss = -tf.nn.relu(correct_logit - wrong_logit + 50)
+        else:
+            print('Unknown loss function. Defaulting to cross-entropy')
+            loss = model.xent
 
-    self.grad = tf.gradients(loss, model.x_input)[0]
+        self.grad = tf.gradients(loss, model.x_input)[0]
 
-  def perturb(self, x_nat, y, sess):
-    """Given a set of examples (x_nat, y), returns a set of adversarial
-       examples within epsilon of x_nat in l_infinity norm."""
-    if self.rand:
-      x = x_nat + np.random.uniform(-self.epsilon, self.epsilon, x_nat.shape)  # rewrite in tensorflow
-      x = np.clip(x, 0, 255) # ensure valid pixel range   # tf clip_by_value
-    else:
-      x = np.copy(x_nat)
+    def perturb(self, x_nat, y, sess):
+        """Given a set of examples (x_nat, y), returns a set of adversarial
+           examples within epsilon of x_nat in l_infinity norm."""
+        if self.rand:
+            x = x_nat + np.random.uniform(-self.epsilon, self.epsilon, x_nat.shape)  # rewrite in tensorflow
+            x = np.clip(x, 0, 255) # ensure valid pixel range   # tf clip_by_value
+        else:
+            x = np.copy(x_nat)
 
-    for i in range(self.num_steps):
-      grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
-                                            self.model.y_input: y})
+        for i in range(self.num_steps):
+            grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
+                                                  self.model.y_input: y})
 
-      x = np.add(x, self.step_size * np.sign(grad), out=x, casting='unsafe')  # tf.math.add
+            x = np.add(x, self.step_size * np.sign(grad), out=x, casting='unsafe')  # tf.math.add
 
-      x = np.clip(x, x_nat - self.epsilon, x_nat + self.epsilon)  #
-      x = np.clip(x, 0, 255) # ensure valid pixel range
+            x = np.clip(x, x_nat - self.epsilon, x_nat + self.epsilon)  #
+            x = np.clip(x, 0, 255) # ensure valid pixel range
 
-    return x
+        return x
 
 
 def normed(t, new_shape):
-  return t / np.reshape(np.linalg.norm(np.reshape(t, [t.shape[0], -1]), axis=-1), new_shape)
+    return t / np.reshape(np.linalg.norm(np.reshape(t, [t.shape[0], -1]), axis=-1), new_shape)
 
 
 class L2PGDAttack:
-  def __init__(self, model, epsilon, num_steps, step_size, random_start, loss_func):
-    """Attack parameter initialization. The attack performs k steps of
-       size a, while always staying within epsilon from the initial
-       point."""
-    self.model = model
-    self.epsilon = epsilon
-    self.num_steps = num_steps
-    self.step_size = step_size
-    self.rand = random_start
+    def __init__(self, model, epsilon, num_steps, step_size, random_start, loss_func):
+        """Attack parameter initialization. The attack performs k steps of
+           size a, while always staying within epsilon from the initial
+           point."""
+        self.model = model
+        self.epsilon = epsilon
+        self.num_steps = num_steps
+        self.step_size = step_size
+        self.rand = random_start
 
-    if loss_func == 'xent':
-      loss = model.xent
-    elif loss_func == 'cw':
-      label_mask = tf.one_hot(model.y_input,
-                              10,
-                              on_value=1.0,
-                              off_value=0.0,
-                              dtype=tf.float32)
-      correct_logit = tf.reduce_sum(label_mask * model.pre_softmax, axis=1)
-      wrong_logit = tf.reduce_max((1-label_mask) * model.pre_softmax - 1e4*label_mask, axis=1)
-      loss = -tf.nn.relu(correct_logit - wrong_logit + 50)
-    else:
-      print('Unknown loss function. Defaulting to cross-entropy')
-      loss = model.xent
+        if loss_func == 'xent':
+            loss = model.xent
+        elif loss_func == 'cw':
+            label_mask = tf.one_hot(model.y_input,
+                                    10,
+                                    on_value=1.0,
+                                    off_value=0.0,
+                                    dtype=tf.float32)
+            correct_logit = tf.reduce_sum(label_mask * model.pre_softmax, axis=1)
+            wrong_logit = tf.reduce_max((1-label_mask) * model.pre_softmax - 1e4*label_mask, axis=1)
+            loss = -tf.nn.relu(correct_logit - wrong_logit + 50)
+        else:
+            print('Unknown loss function. Defaulting to cross-entropy')
+            loss = model.xent
 
-    self.grad = tf.gradients(loss, model.x_input)[0]
+        self.grad = tf.gradients(loss, model.x_input)[0]
 
-  def perturb(self, x_nat, y, sess):
-    """Given a set of examples (x_nat, y), returns a set of adversarial
-       examples within epsilon of x_nat in l_infinity norm."""
-    if self.rand:
-      scale = self.epsilon
-      new_shape = [-1, 1, 1, 1]
-      noise = np.random.uniform(x_nat.shape)
-      x = x_nat + normed(noise, new_shape) * scale
-      x = np.clip(x, 0, 255) # ensure valid pixel range   # tf clip_by_value
-    else:
-      x = np.copy(x_nat)
+    def perturb(self, x_nat, y, sess):
+        """Given a set of examples (x_nat, y), returns a set of adversarial
+           examples within epsilon of x_nat in l_infinity norm."""
+        if self.rand:
+            eta = random_lp_vector(tf.shape(x_nat),
+                                   tf.cast(self.epsilon, x_nat.dtype),
+                                   dtype=x_nat.dtype)
+            x = x_nat + eta
+            x = np.clip(x, 0, 255)
+        else:
+            x = np.copy(x_nat)
 
-    for i in range(self.num_steps):
-      grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
-                                            self.model.y_input: y})
+        for i in range(self.num_steps):
+            grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
+                                                  self.model.y_input: y})
 
-      eta = self.step_size * np.sign(grad)
+            eta = self.step_size * np.sign(grad)
 
-      # project back to l2 ball
-      avoid_zero_div = 1e-12
-      reduc_ind = list(xrange(1, len(grad.shape)))
-      norm = np.sqrt(np.maximum(avoid_zero_div,
-                                np.sum(np.square(grad),
-                                           reduc_ind,
-                                           keepdims=True)))
+            # project back to l2 ball
+            avoid_zero_div = 1e-12
+            reduc_ind = list(xrange(1, len(grad.shape)))
+            norm = np.sqrt(np.maximum(avoid_zero_div,
+                                      np.sum(np.square(grad),
+                                             reduc_ind,
+                                             keepdims=True)))
 
-      factor = np.minimum(1., self.epsilon/norm)
-      eta = eta * factor
+            factor = np.minimum(1., self.epsilon/norm)
+            eta = eta * factor
 
-      x = np.add(x, eta, out = x, casting = 'unsafe')  # tf.math.add
-      x = np.clip(x, 0, 255) # ensure valid pixel range
+            x = np.add(x, eta, out = x, casting = 'unsafe')  # tf.math.add
+            x = np.clip(x, 0, 255) # ensure valid pixel range
 
-    return x
+        return x
 
 
 
 if __name__ == '__main__':
-  import json
-  import sys
-  import math
+    import json
+    import sys
+    import math
 
 
-  from model import Model
+    from model import Model
 
-  with open('config.json') as config_file:
-    config = json.load(config_file)
+    with open('config.json') as config_file:
+        config = json.load(config_file)
 
-  model_file = tf.train.latest_checkpoint(config['model_dir'])
-  if model_file is None:
-    print('No model found')
-    sys.exit()
+    model_file = tf.train.latest_checkpoint(config['model_dir'])
+    if model_file is None:
+        print('No model found')
+        sys.exit()
 
-  model = Model(mode='eval')
-  attack = LinfPGDAttack(model,
-                         config['epsilon'],
-                         config['num_steps'],
-                         config['step_size'],
-                         config['random_start'],
-                         config['loss_func'])
-  saver = tf.train.Saver()
+    model = Model(mode='eval')
+    attack = LinfPGDAttack(model,
+                           config['epsilon'],
+                           config['num_steps'],
+                           config['step_size'],
+                           config['random_start'],
+                           config['loss_func'])
+    saver = tf.train.Saver()
 
-  data_path = config['data_path']
-  cifar = cifar10_input.CIFAR10Data(data_path)
+    data_path = config['data_path']
+    cifar = cifar10_input.CIFAR10Data(data_path)
 
-  with tf.Session() as sess:
-    # Restore the checkpoint
-    saver.restore(sess, model_file)
+    with tf.Session() as sess:
+        # Restore the checkpoint
+        saver.restore(sess, model_file)
 
-    # Iterate over the samples batch-by-batch
-    num_eval_examples = config['num_eval_examples']
-    eval_batch_size = config['eval_batch_size']
-    num_batches = int(math.ceil(num_eval_examples / eval_batch_size))
+        # Iterate over the samples batch-by-batch
+        num_eval_examples = config['num_eval_examples']
+        eval_batch_size = config['eval_batch_size']
+        num_batches = int(math.ceil(num_eval_examples / eval_batch_size))
 
-    x_adv = [] # adv accumulator
+        x_adv = [] # adv accumulator
 
-    print('Iterating over {} batches'.format(num_batches))
+        print('Iterating over {} batches'.format(num_batches))
 
-    for ibatch in range(num_batches):
-      bstart = ibatch * eval_batch_size
-      bend = min(bstart + eval_batch_size, num_eval_examples)
-      print('batch size: {}'.format(bend - bstart))
+        for ibatch in range(num_batches):
+            bstart = ibatch * eval_batch_size
+            bend = min(bstart + eval_batch_size, num_eval_examples)
+            print('batch size: {}'.format(bend - bstart))
 
-      x_batch = cifar.eval_data.xs[bstart:bend, :]
-      y_batch = cifar.eval_data.ys[bstart:bend]
+            x_batch = cifar.eval_data.xs[bstart:bend, :]
+            y_batch = cifar.eval_data.ys[bstart:bend]
 
-      x_batch_adv = attack.perturb(x_batch, y_batch, sess)
+            x_batch_adv = attack.perturb(x_batch, y_batch, sess)
 
-      x_adv.append(x_batch_adv)
+            x_adv.append(x_batch_adv)
 
-    print('Storing examples')
-    path = config['store_adv_path']
-    x_adv = np.concatenate(x_adv, axis=0)
-    np.save(path, x_adv)
-    print('Examples stored in {}'.format(path))
+        print('Storing examples')
+        path = config['store_adv_path']
+        x_adv = np.concatenate(x_adv, axis=0)
+        np.save(path, x_adv)
+        print('Examples stored in {}'.format(path))
