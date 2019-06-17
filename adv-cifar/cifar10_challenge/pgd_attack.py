@@ -14,15 +14,15 @@ from six.moves import xrange
 import cifar10_input
 
 
-def random_lp_vector(shape, eps, dtype=tf.float32, seed=None):
-    dim = tf.reduce_prod(shape[1:])
+def random_lp_vector(shape, eps):
+    dim = np.prod(shape[1:])
 
-    x = tf.random_normal((shape[0], dim), dtype=dtype, seed=seed)
-    norm = tf.sqrt(tf.reduce_sum(tf.square(x), axis=-1, keepdims=True))
+    x = np.random.normal(size=(shape[0], dim))
+    norm = np.sqrt(np.sum(np.square(x), axis=-1, keepdims=True))
 
-    w = tf.pow(tf.random.uniform((shape[0], 1), dtype=dtype, seed=seed),
-               1.0 / tf.cast(dim, dtype))
-    r = eps * tf.reshape(w * x / norm, shape)
+    w = np.power(np.random.uniform(size=(shape[0], 1)),
+               1.0 / dim)
+    r = eps * np.reshape(w * x / norm, shape)
 
     return r
 
@@ -112,10 +112,8 @@ class L2PGDAttack:
         """Given a set of examples (x_nat, y), returns a set of adversarial
            examples within epsilon of x_nat in l_infinity norm."""
         if self.rand:
-            eta = random_lp_vector(tf.shape(x_nat),
-                                   tf.cast(self.epsilon, x_nat.dtype),
-                                   dtype=x_nat.dtype)
-            x = x_nat + eta.eval()
+            eta = random_lp_vector(x_nat.shape, self.epsilon)
+            x = x_nat + eta
             x = np.clip(x, 0, 255)
         else:
             x = np.copy(x_nat)
@@ -141,7 +139,6 @@ class L2PGDAttack:
             x = np.clip(x, 0, 255) # ensure valid pixel range
 
         return x
-
 
 
 if __name__ == '__main__':
