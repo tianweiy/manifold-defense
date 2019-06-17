@@ -72,7 +72,7 @@ if not os.path.exists(model_dir):
 # - train of different runs
 # - eval of different runs
 
-saver = tf.train.Saver(max_to_keep=5)
+saver = tf.train.Saver()
 tf.summary.scalar('accuracy adv train', model.accuracy)
 tf.summary.scalar('accuracy adv', model.accuracy)
 tf.summary.scalar('xent adv train', model.xent / batch_size)
