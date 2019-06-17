@@ -115,30 +115,30 @@ class L2PGDAttack:
             eta = random_lp_vector(tf.shape(x_nat),
                                    tf.cast(self.epsilon, x_nat.dtype),
                                    dtype=x_nat.dtype)
-            x = x_nat + eta.eval()
-            x = np.clip(x, 0, 255)
+            x = x_nat + eta
+            x = tf.clip_by_value(x, 0, 255)
         else:
-            x = np.copy(x_nat)
+            x = tf.convert_to_tensor(x_nat)
 
         for i in range(self.num_steps):
             grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
                                                   self.model.y_input: y})
 
-            eta = self.step_size * np.sign(grad)
+            eta = self.step_size * tf.sign(grad)
 
             # project back to l2 ball
             avoid_zero_div = 1e-12
-            reduc_ind = tuple(xrange(1, len(grad.shape)))
-            norm = np.sqrt(np.maximum(avoid_zero_div,
-                                      np.sum(np.square(grad),
+            reduc_ind = list(xrange(1, len(grad.shape)))
+            norm = tf.sqrt(tf.maximum(avoid_zero_div,
+                                      tf.reduce_sum(tf.square(grad),
                                              reduc_ind,
                                              keepdims=True)))
 
-            factor = np.minimum(1., self.epsilon/norm)
+            factor = tf.minimum(1., self.epsilon/norm)
             eta = eta * factor
 
-            x = np.add(x, eta, out = x, casting = 'unsafe')  # tf.math.add
-            x = np.clip(x, 0, 255) # ensure valid pixel range
+            x = tf.add(x, eta, out=x, casting='unsafe')  # tf.math.add
+            x = tf.clip_by_value(x, 0, 255)    # ensure valid pixel range
 
         return x
 
