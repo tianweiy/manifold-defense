@@ -115,7 +115,7 @@ class L2PGDAttack:
             eta = random_lp_vector(tf.shape(x_nat),
                                    tf.cast(self.epsilon, x_nat.dtype),
                                    dtype=x_nat.dtype)
-            x = x_nat + eta
+            x = x_nat + eta.eval(sess)
             x = np.clip(x, 0, 255)
         else:
             x = np.copy(x_nat)
