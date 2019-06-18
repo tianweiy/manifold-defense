@@ -54,7 +54,7 @@ train_step = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(
     global_step=global_step)  # need to modify this for attack +d See optimization-based attacks
 
 # Set up adversary
-attack = LinfPGDAttack(model,
+attack = L2PGDAttack(model,
                      config['epsilon'],
                      config['num_steps'],
                      config['step_size'],
