@@ -72,7 +72,7 @@ if not os.path.exists(model_dir):
 # - train of different runs
 # - eval of different runs
 
-saver = tf.train.Saver()
+saver = tf.train.Saver(keep_checkpoint_every_n_hours=1)
 # saver = tf.train.import_meta_graph("./models/adv_trained/checkpoint-1000.meta.tmpf3ac6c9416514c0698d28ea156ebf732")
 tf.summary.scalar('accuracy adv train', model.accuracy)
 tf.summary.scalar('accuracy adv', model.accuracy)
