@@ -51,7 +51,7 @@ learning_rate = tf.train.piecewise_constant(
 total_loss = model.mean_xent + weight_decay * model.weight_decay_loss
 train_step = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(
     total_loss,
-    global_step=global_step)  # need to modify this for attack +d See optimization-based attacks
+    global_step=global_step)
 
 # Set up adversary
 attack = L2PGDAttack(model,

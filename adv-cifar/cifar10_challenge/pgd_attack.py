@@ -76,10 +76,6 @@ class LinfPGDAttack:
         return x
 
 
-def normed(t, new_shape):
-    return t / np.reshape(np.linalg.norm(np.reshape(t, [t.shape[0], -1]), axis=-1), new_shape)
-
-
 class L2PGDAttack:
     def __init__(self, model, epsilon, num_steps, step_size, random_start, loss_func):
         """Attack parameter initialization. The attack performs k steps of
@@ -122,7 +118,10 @@ class L2PGDAttack:
             grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
                                                   self.model.y_input: y})
 
-            eta = self.step_size * np.sign(grad)
+            # TODO: FIX THIS, we shouldn't use sign for l2 attacks
+            # renorm gradients
+            renorm_grad = grad / np.reshape(np.linalg.norm(np.reshape(grad, (x_nat.shape[0], -1)), axis=-1), (-1, 1, 1, 1))
+            eta = self.step_size * renorm_grad
 
             # project back to l2 ball
             avoid_zero_div = 1e-12
