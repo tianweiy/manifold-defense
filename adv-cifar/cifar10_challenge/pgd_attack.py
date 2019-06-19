@@ -108,8 +108,8 @@ class L2PGDAttack:
         """Given a set of examples (x_nat, y), returns a set of adversarial
            examples within epsilon of x_nat in l_infinity norm."""
         if self.rand:
-            eta = random_lp_vector(x_nat.shape, self.epsilon)
-            x = x_nat + eta
+            noise = random_lp_vector(x_nat.shape, self.epsilon)
+            x = x_nat + 0.5 * noise
             x = np.clip(x, 0, 255)
         else:
             x = np.copy(x_nat)
