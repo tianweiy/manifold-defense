@@ -117,8 +117,6 @@ class L2PGDAttack:
         for i in range(self.num_steps):
             grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
                                                   self.model.y_input: y})
-
-            # TODO: FIX THIS, we shouldn't use sign for l2 attacks
             # renorm gradients
             renorm_grad = grad / np.reshape(np.linalg.norm(np.reshape(grad, (x_nat.shape[0], -1)), axis=-1), (-1, 1, 1, 1))
             eta = self.step_size * renorm_grad
