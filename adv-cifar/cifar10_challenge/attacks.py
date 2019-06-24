@@ -64,6 +64,11 @@ class L2OPAttack:
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
         self.opt_step2 = self.opt2.minimize(loss2, var_list=[self.lambda_])
 
+        self.assign_z1 = self.z1.assign(tf.random.uniform([BATCH_SIZE, embed_feats]))
+        self.assign_z2 = self.z2.assign(tf.random.uniform([BATCH_SIZE, embed_feats]))
+
+        self.ce_loss = -tf.reduce_sum(self.net_pre1 * tf.log(self.net_pre2), reduction_indices=[-1])
+
     def perturb(self, sess, eps, num_images=128,
              num_steps=1000):
 
@@ -73,8 +78,7 @@ class L2OPAttack:
 
         for i in range(num_images // BATCH_SIZE):
             # sample two latent code
-            self.z1.assign(tf.random.uniform([BATCH_SIZE, embed_feats]))
-            self.z2.assign(tf.random.uniform([BATCH_SIZE, embed_feats]))
+            sess.run([self.assign_z1, self.assign_z2])
 
             # reinitialize latent codes for new batch of images
             reset_optimizer_op = tf.variables_initializer([self.lambda_, self.opt1.variables(), self.opt2.variables()])
@@ -83,19 +87,20 @@ class L2OPAttack:
             for j in range(num_steps):
                 print("Steps: ", j)
                 # generate images
-                is_adv, is_feasible = sess.run([self.is_adv, self.is_feasible])
+                is_adv, is_feasible, x1, x2 = sess.run([self.is_adv, self.is_feasible, self.x1, self.x2])
                 if tf.reduce_sum(is_adv * is_feasible) == BATCH_SIZE:
-                    batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x1)
-                    batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x2)
+                    batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
+                    batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
                     break
+
+                loss, distance = sess.run([self.ce_loss, tf.reduce_sum(self.distance_mat)])
+                print(loss)
+                print(distance)
 
                 # update latent code
                 sess.run(self.opt_step1)
                 sess.run(self.opt_step2)
-
-                print(sess.run([-tf.reduce_sum(self.net_pre1 * tf.log(self.net_pre2), reduction_indices=[-1])]))
-                print(sess.run(tf.reduce_sum(self.distance_mat)))
 
             batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x1)
             batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x2)
@@ -124,7 +129,6 @@ if __name__ == '__main__':
         sys.exit()
 
     model = Model(mode='eval')
-
 
     saver = tf.train.Saver()
 
