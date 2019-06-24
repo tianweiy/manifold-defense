@@ -12,9 +12,9 @@ import numpy as np
 import tensorflow_hub as hub
 
 embed_feats=128
-BATCH_SIZE = 6
-z_lr=5e-3
-lambda_lr=1e-4
+BATCH_SIZE = 64
+z_lr=0.5
+lambda_lr=1
 EPS = 255.0
 
 def ce(y_, y):
@@ -24,12 +24,11 @@ def ce(y_, y):
 class L2OPAttack:
     def __init__(self, gan, net):
         """overpowered attack using max-min optimization"""
-        self.z1 = tf.Variable(tf.random.uniform([BATCH_SIZE, embed_feats]), trainable=False)
-        self.z2 = tf.Variable(tf.random.uniform([BATCH_SIZE, embed_feats]), trainable=False)
-        self.lambda_ = tf.Variable(1e0 * tf.ones([self.z1.shape[0], 1]), trainable=False)
-
-        self.opt1 = tf.train.MomentumOptimizer(z_lr, momentum=0.9)
-        self.opt2 = tf.train.MomentumOptimizer(lambda_lr, momentum=0.9)
+        shape = [BATCH_SIZE, embed_feats]
+        
+        self.z1 = tf.Variable(np.zeros(shape), dtype=np.float32)
+        self.z2 = tf.Variable(np.zeros(shape), dtype=np.float32)
+        self.lambda_ = tf.Variable(np.ones([shape[0], 1]), dtype=np.float32)
 
         self._build_graph(gan, net)
 
@@ -40,11 +39,15 @@ class L2OPAttack:
         self.x1 = gan(self.z1, signature="generator")
         self.x2 = gan(self.z2, signature="generator")
 
+        opt1 = tf.train.MomentumOptimizer(z_lr, momentum=0.9)
+        opt2 = tf.train.MomentumOptimizer(lambda_lr, momentum=0.9)
+
         self.distance_mat = tf.norm(tf.reshape(self.x1 - self.x2, (self.x1.shape[0], -1)), axis=-1, keep_dims=False) - EPS * ones
+        self.dist = tf.reduce_mean(self.distance_mat)
 
         # pre-softmax logits
-        self.net_pre1 = tf.nn.softmax(net.forward(self.x1))
-        self.net_pre2 = tf.nn.softmax(net.forward(self.x2))
+        self.net_pre1 = tf.nn.softmax(net._forward(self.x1))
+        self.net_pre2 = tf.nn.softmax(net._forward(self.x2))
 
         # predictecd labels
         net_res1 = tf.argmax(self.net_pre1, axis=-1)
@@ -60,16 +63,15 @@ class L2OPAttack:
             tf.norm(self.z1, axis=-1) * self.not_valid) + \
                 1e-4 * tf.reduce_sum(tf.norm(self.z2, axis=-1) * self.not_valid) / tf.reduce_sum(self.not_valid)
 
-        self.opt_step1 = self.opt1.minimize(loss1, var_list=[self.z1, self.z2])
+        self.opt_step1 = opt1.minimize(loss1, var_list=[self.z1, self.z2])
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
-        self.opt_step2 = self.opt2.minimize(loss2, var_list=[self.lambda_])
+        self.opt_step2 = opt2.minimize(loss2, var_list=[self.lambda_])
 
-        self.assign_z1 = self.z1.assign(tf.random.uniform([BATCH_SIZE, embed_feats]))
-        self.assign_z2 = self.z2.assign(tf.random.uniform([BATCH_SIZE, embed_feats]))
+        self.ce_loss = -tf.reduce_mean(self.net_pre1 * tf.log(self.net_pre2))
+        # TODO: REMEBER TO ADD INIT AFTER FIXING BUGS!!!
 
-        self.ce_loss = -tf.reduce_sum(self.net_pre1 * tf.log(self.net_pre2), reduction_indices=[-1])
 
-    def perturb(self, sess, eps, num_images=128,
+    def perturb(self, sess, eps, num_images=64,
              num_steps=1000):
 
         batch1 = tf.zeros((num_images, 3, 32, 32))
@@ -78,29 +80,25 @@ class L2OPAttack:
 
         for i in range(num_images // BATCH_SIZE):
             # sample two latent code
-            sess.run([self.assign_z1, self.assign_z2])
-
-            # reinitialize latent codes for new batch of images
-            reset_optimizer_op = tf.variables_initializer([self.lambda_, self.opt1.variables(), self.opt2.variables()])
-            sess.run(reset_optimizer_op)
 
             for j in range(num_steps):
                 print("Steps: ", j)
                 # generate images
+                """
                 is_adv, is_feasible, x1, x2 = sess.run([self.is_adv, self.is_feasible, self.x1, self.x2])
                 if tf.reduce_sum(is_adv * is_feasible) == BATCH_SIZE:
                     batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
                     batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
                     break
+                """
 
-                loss, distance = sess.run([self.ce_loss, tf.reduce_sum(self.distance_mat)])
-                print(loss)
-                print(distance)
+                loss, distance, coef = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_)])
+                print(loss, distance, coef)
 
                 # update latent code
-                sess.run(self.opt_step1)
-                sess.run(self.opt_step2)
+                sess.run([self.opt_step2])
+                # sess.run(self.opt_step2, feed_dict=feed_dict)
 
             batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x1)
             batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x2)
@@ -139,7 +137,8 @@ if __name__ == '__main__':
         gan = hub.Module("https://tfhub.dev/google/compare_gan/model_13_cifar10_resnet_cifar/1")
         attack = L2OPAttack(gan, model)
 
-        batch1, batch2, is_valid = attack.perturb(sess, model, gan, config['epsilon'])
+        sess.run(tf.global_variables_initializer()) 
+        batch1, batch2, is_valid = attack.perturb(sess, config['epsilon'])
 
         print('Storing examples')
         path = config['store_adv_path']
