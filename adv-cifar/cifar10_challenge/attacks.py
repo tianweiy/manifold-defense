@@ -72,7 +72,7 @@ class L2OPAttack:
         self.ce_loss = ce(self.net_pre1, self.net_pre2) * self.not_valid / tf.reduce_sum(self.not_valid)
 
     def perturb(self, sess, eps, num_images=64,
-             num_steps=1000):
+             num_steps=5):
 
         batch1 = tf.zeros((num_images, 3, 32, 32))
         batch2 = tf.zeros((num_images, 3, 32, 32))
@@ -84,16 +84,16 @@ class L2OPAttack:
             for j in range(num_steps):
                 print("Steps: ", j)
                 # generate images
-                """
+
                 is_adv, is_feasible, x1, x2 = sess.run([self.is_adv, self.is_feasible, self.x1, self.x2])
                 if tf.reduce_sum(is_adv * is_feasible) == BATCH_SIZE:
                     batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x1
                     batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = x2
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
                     break
-                """
-                loss, distance, coef, not_valid, adv, _ = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_), tf.reduce_mean(self.not_valid), tf.reduce_mean(self.is_adv), self.opt_step1])
-                print("loss ", loss, "distance ", distance, "lambda: ", coef, "not valid: ", not_valid, "adv: ", adv, "feasible: ", sess.run(tf.reduce_mean(self.is_feasible)))
+
+                loss, distance, coef, not_valid, _ = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_), tf.reduce_mean(self.not_valid), self.opt_step1])
+                print("loss ", loss, "distance ", distance, "lambda: ", coef, "not valid: ", not_valid, "adv: ", is_adv, "feasible: ", is_feasible)
 
                 sess.run(self.opt_step2)
 
