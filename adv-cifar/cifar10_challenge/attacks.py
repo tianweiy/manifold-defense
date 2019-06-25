@@ -13,13 +13,13 @@ import tensorflow_hub as hub
 
 embed_feats=128
 BATCH_SIZE = 64
-z_lr=0.5
-lambda_lr=1
-EPS = 255.0
+z_lr=5e-1
+lambda_lr=1e-1
+EPS = 8.0
 
 
 def ce(x, y):
-    ce = -1. * tf.reduce_sum(tf.softmax(x) * tf.log_softmax(y), dim=-1)
+    ce = -1. * tf.reduce_sum(tf.nn.softmax(x) * tf.nn.log_softmax(y), axis=-1)
     return tf.reduce_sum(ce)
 
 
@@ -28,9 +28,9 @@ class L2OPAttack:
         """overpowered attack using max-min optimization"""
         shape = [BATCH_SIZE, embed_feats]
         
-        self.z1 = tf.Variable(np.zeros(shape), dtype=np.float32)
-        self.z2 = tf.Variable(np.zeros(shape), dtype=np.float32)
-        self.lambda_ = tf.Variable(np.ones([shape[0], 1]), dtype=np.float32)
+        self.z1 = tf.Variable(tf.random.uniform(shape), dtype=tf.float32)
+        self.z2 = tf.Variable(tf.random.uniform(shape), dtype=tf.float32)
+        self.lambda_ = tf.Variable(0.5*tf.ones([shape[0], 1]), dtype=tf.float32)
 
         self._build_graph(gan, net)
 
@@ -55,8 +55,8 @@ class L2OPAttack:
         net_res1 = tf.argmax(self.net_pre1, axis=-1)
         net_res2 = tf.argmax(self.net_pre2, axis=-1)
 
-        self.is_adv = tf.cast(1 - (net_res1 == net_res2), tf.float32)
-        self.is_feasible = tf.cast((self.distance_mat <= 0), tf.float32)
+        self.is_adv = 1 - tf.cast(tf.equal(net_res1, net_res2), tf.float32)
+        self.is_feasible = tf.cast(tf.less_equal(self.distance_mat, 0), tf.float32)
         self.not_valid = tf.cast(1 - (self.is_adv * self.is_feasible), tf.float32)
 
         # calculate loss1, update opt1
@@ -64,14 +64,12 @@ class L2OPAttack:
                 tf.reduce_sum(self.lambda_ * self.distance_mat * self.not_valid) + 1e-4 * tf.reduce_sum(
             tf.norm(self.z1, axis=-1) * self.not_valid) + \
                 1e-4 * tf.reduce_sum(tf.norm(self.z2, axis=-1) * self.not_valid)) / tf.reduce_sum(self.not_valid)
-
+        
         self.opt_step1 = opt1.minimize(loss1, var_list=[self.z1, self.z2])
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
         self.opt_step2 = opt2.minimize(loss2, var_list=[self.lambda_])
 
-        self.ce_loss = -tf.reduce_mean(self.net_pre1 * tf.log(self.net_pre2))
-        # TODO: REMEBER TO ADD INIT AFTER FIXING BUGS!!!
-
+        self.ce_loss = ce(self.net_pre1, self.net_pre2) * self.not_valid / tf.reduce_sum(self.not_valid)
 
     def perturb(self, sess, eps, num_images=64,
              num_steps=1000):
@@ -94,9 +92,10 @@ class L2OPAttack:
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
                     break
                 """
+                loss, distance, coef, not_valid, adv, _ = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_), tf.reduce_mean(self.not_valid), tf.reduce_mean(self.is_adv), self.opt_step1])
+                print("loss ", loss, "distance ", distance, "lambda: ", coef, "not valid: ", not_valid, "adv: ", adv, "feasible: ", sess.run(tf.reduce_mean(self.is_feasible)))
 
-                loss, distance, coef, _ = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_), self.opt_step1])
-                print(loss, distance, coef)
+                sess.run(self.opt_step2)
 
                 # update latent code
                 # sess.run([self.opt_step2])
