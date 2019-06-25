@@ -41,8 +41,8 @@ class L2OPAttack:
         self.x1 = gan(self.z1, signature="generator")
         self.x2 = gan(self.z2, signature="generator")
 
-        opt1 = tf.train.GradientDescentOptimizer(z_lr)
-        opt2 = tf.train.GradientDescentOptimizer(lambda_lr)
+        opt1 = tf.train.MomentumOptimizer(z_lr, 0.9)
+        opt2 = tf.train.MomentumOptimizer(lambda_lr, 0.9)
 
         self.distance_mat = tf.norm(tf.reshape(self.x1 - self.x2, (self.x1.shape[0], -1)), axis=-1, keep_dims=False) - EPS * ones
         self.dist = tf.reduce_mean(self.distance_mat)
@@ -69,14 +69,12 @@ class L2OPAttack:
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
         self.opt_step2 = opt2.minimize(loss2, var_list=[self.lambda_])
 
-        self.ce_loss = ce(self.net_pre1, self.net_pre2) * self.not_valid / tf.reduce_sum(self.not_valid)
-
     def perturb(self, sess, eps, num_images=64,
-             num_steps=5):
+             num_steps=200):
 
-        batch1 = tf.zeros((num_images, 3, 32, 32))
-        batch2 = tf.zeros((num_images, 3, 32, 32))
-        is_valid = tf.zeros(num_images)
+        batch1 = np.zeros((num_images, 32, 32, 3))
+        batch2 = np.zeros((num_images, 32, 32, 3))
+        is_valid = np.zeros(num_images)
 
         for i in range(num_images // BATCH_SIZE):
             # sample two latent code
@@ -92,9 +90,7 @@ class L2OPAttack:
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
                     break
 
-                loss, distance, coef, not_valid, _ = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_), tf.reduce_mean(self.not_valid), self.opt_step1])
-                print("loss ", loss, "distance ", distance, "lambda: ", coef, "not valid: ", not_valid, "adv: ", is_adv, "feasible: ", is_feasible)
-
+                sess.run(self.opt_step1)
                 sess.run(self.opt_step2)
 
                 # update latent code
