@@ -17,8 +17,10 @@ z_lr=0.5
 lambda_lr=1
 EPS = 255.0
 
-def ce(y_, y):
-    return tf.reduce_sum(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[-1]))
+
+def ce(x, y):
+    ce = -1. * tf.reduce_sum(tf.softmax(x) * tf.log_softmax(y), dim=-1)
+    return tf.reduce_sum(ce)
 
 
 class L2OPAttack:
@@ -39,15 +41,15 @@ class L2OPAttack:
         self.x1 = gan(self.z1, signature="generator")
         self.x2 = gan(self.z2, signature="generator")
 
-        opt1 = tf.train.MomentumOptimizer(z_lr, momentum=0.9)
-        opt2 = tf.train.MomentumOptimizer(lambda_lr, momentum=0.9)
+        opt1 = tf.train.GradientDescentOptimizer(z_lr)
+        opt2 = tf.train.GradientDescentOptimizer(lambda_lr)
 
         self.distance_mat = tf.norm(tf.reshape(self.x1 - self.x2, (self.x1.shape[0], -1)), axis=-1, keep_dims=False) - EPS * ones
         self.dist = tf.reduce_mean(self.distance_mat)
 
         # pre-softmax logits
-        self.net_pre1 = tf.nn.softmax(net._forward(self.x1))
-        self.net_pre2 = tf.nn.softmax(net._forward(self.x2))
+        self.net_pre1 = net._forward(self.x1)
+        self.net_pre2 = net._forward(self.x2)
 
         # predictecd labels
         net_res1 = tf.argmax(self.net_pre1, axis=-1)
@@ -58,10 +60,10 @@ class L2OPAttack:
         self.not_valid = tf.cast(1 - (self.is_adv * self.is_feasible), tf.float32)
 
         # calculate loss1, update opt1
-        loss1 = (-1. * tf.reduce_sum(ce(self.net_pre1, self.net_pre2), reduction_indices=None) * self.not_valid) + \
+        loss1 = (-1. * tf.reduce_sum(ce(self.net_pre1, self.net_pre2) * self.not_valid) + \
                 tf.reduce_sum(self.lambda_ * self.distance_mat * self.not_valid) + 1e-4 * tf.reduce_sum(
             tf.norm(self.z1, axis=-1) * self.not_valid) + \
-                1e-4 * tf.reduce_sum(tf.norm(self.z2, axis=-1) * self.not_valid) / tf.reduce_sum(self.not_valid)
+                1e-4 * tf.reduce_sum(tf.norm(self.z2, axis=-1) * self.not_valid)) / tf.reduce_sum(self.not_valid)
 
         self.opt_step1 = opt1.minimize(loss1, var_list=[self.z1, self.z2])
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
@@ -93,11 +95,11 @@ class L2OPAttack:
                     break
                 """
 
-                loss, distance, coef = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_)])
+                loss, distance, coef, _ = sess.run([self.ce_loss, self.dist, tf.reduce_mean(self.lambda_), self.opt_step1])
                 print(loss, distance, coef)
 
                 # update latent code
-                sess.run([self.opt_step2])
+                # sess.run([self.opt_step2])
                 # sess.run(self.opt_step2, feed_dict=feed_dict)
 
             batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x1)
