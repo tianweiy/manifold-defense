@@ -13,8 +13,8 @@ import tensorflow_hub as hub
 
 embed_feats=128
 BATCH_SIZE = 64
-z_lr= 2
-lambda_lr=0.05
+z_lr= 1e-4
+lambda_lr= 1e-4
 EPS = 255
 
 
@@ -69,7 +69,7 @@ class L2OPAttack:
         loss2 = -1. * tf.reduce_mean(self.lambda_ * self.distance_mat * self.not_valid)
         self.opt_step2 = opt2.minimize(loss2, var_list=[self.lambda_])
 
-    def perturb(self, sess, eps, num_images=64,
+    def perturb(self, sess, num_images=64,
              num_steps=1000):
 
         batch1 = np.zeros((num_images, 32, 32, 3))
@@ -139,7 +139,7 @@ if __name__ == '__main__':
         attack = L2OPAttack(gan, model)
 
         sess.run(tf.global_variables_initializer()) 
-        batch1, batch2, is_valid = attack.perturb(sess, config['epsilon'])
+        batch1, batch2, is_valid = attack.perturb(sess)
 
         print('Storing examples')
         path = config['store_adv_path']
