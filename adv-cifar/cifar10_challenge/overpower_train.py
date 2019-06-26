@@ -21,7 +21,7 @@ from pgd_attack import L2PGDAttack, LinfPGDAttack
 from attacks import L2OPAttack, ce
 
 
-with open('config.json') as config_file:
+with open('finetune_config.json') as config_file:
     config = json.load(config_file)
 
 # seeding randomness
