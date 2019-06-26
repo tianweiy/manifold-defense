@@ -109,7 +109,7 @@ class L2PGDAttack:
            examples within epsilon of x_nat in l_infinity norm."""
         if self.rand:
             noise = random_lp_vector(x_nat.shape, self.epsilon)
-            x = x_nat + 0.5 * noise
+            x = x_nat +  noise
             x = np.clip(x, 0, 255)
         else:
             x = np.copy(x_nat)
@@ -118,7 +118,7 @@ class L2PGDAttack:
             grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
                                                   self.model.y_input: y})
             # renorm gradients
-            renorm_grad = grad / np.reshape(np.linalg.norm(np.reshape(grad, (x_nat.shape[0], -1)), axis=-1), (-1, 1, 1, 1))
+            renorm_grad = grad / np.reshape(np.linalg.norm(1e-16+np.reshape(grad, (x_nat.shape[0], -1)), axis=-1, keepdims=True), (-1, 1, 1, 1))
             eta = self.step_size * renorm_grad
 
             # project back to l2 ball

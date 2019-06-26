@@ -164,47 +164,4 @@ with tf.Session() as sess:
         end = timer()
         training_time += end - start
 
-        # evaluate every epoch
-        if ii % 400 == 0:
-            # evalaution on test set
-            num_eval_examples = 10000
-            eval_batch_size = 100
-            total_corr = 0
 
-            num_batches = int(math.ceil(num_eval_examples / eval_batch_size))
-
-            # first construct adv example
-            x_adv = []  # adv accumulator
-
-            print('Iterating over {} batches'.format(num_batches))
-
-            for ibatch in range(num_batches):
-                bstart = ibatch * eval_batch_size
-                bend = min(bstart + eval_batch_size, num_eval_examples)
-                print('batch size: {}'.format(bend - bstart))
-
-                x_batch = cifar.eval_data.xs[bstart:bend, :]
-                y_batch = cifar.eval_data.ys[bstart:bend]
-
-                x_batch_adv = l2_attack.perturb(x_batch, y_batch, sess)
-
-                x_adv.append(x_batch_adv)
-
-            # then evaluate the accuracy
-            # Iterate over the samples batch-by-batch
-            for ibatch in range(num_batches):
-                bstart = ibatch * eval_batch_size
-                bend = min(bstart + eval_batch_size, num_eval_examples)
-
-                x_batch = x_adv[bstart:bend, :]
-                y_batch = cifar.eval_data.ys[bstart:bend]
-
-                dict_adv = {model.x_input: x_batch,
-                            model.y_input: y_batch}
-                cur_corr, y_pred_batch = sess.run([model.num_correct, model.predictions],
-                                                  feed_dict=dict_adv)
-
-                total_corr += cur_corr
-
-            accuracy = total_corr / num_eval_examples
-            print('    test adv accuracy {:.4}%'.format(accuracy * 100))
