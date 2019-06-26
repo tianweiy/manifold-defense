@@ -9,13 +9,13 @@ import tensorflow as tf
 class Model(object):
   """ResNet model."""
 
-  def __init__(self, mode):
+  def __init__(self):
     """ResNet constructor.
 
     Args:
       mode: One of 'train' and 'eval'.
     """
-    self.mode = mode
+    self.mode = tf.placeholder(tf.bool)
     self._build_model()
 
   def add_internal_summaries(self):
@@ -26,7 +26,6 @@ class Model(object):
     return [1, stride, stride, 1]
 
   def _build_model(self):
-    assert self.mode == 'train' or self.mode == 'eval'
     """Build the core model within the graph."""
     with tf.variable_scope('input'):
 
@@ -154,7 +153,7 @@ class Model(object):
           scale=True,
           activation_fn=None,
           updates_collections=None,
-          is_training=(self.mode == 'train'))
+          is_training=self.mode)
 
   def _residual(self, x, in_filter, out_filter, stride,
                 activate_before_residual=False):

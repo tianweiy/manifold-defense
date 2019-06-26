@@ -38,7 +38,9 @@ batch_size = config['training_batch_size']
 # Setting up the data and the model
 raw_cifar = cifar10_input.CIFAR10Data(data_path)
 global_step = tf.contrib.framework.get_or_create_global_step()
-model = Model(mode='train')
+
+# create a boolean placeholder to determine train/eval mode for the model
+model = Model()
 
 # Setting up the optimizer
 boundaries = [int(sss[0]) for sss in step_size_schedule]
@@ -107,10 +109,12 @@ with tf.Session() as sess:
         training_time += end - start
 
         nat_dict = {model.x_input: x_batch,
-                    model.y_input: y_batch}
+                    model.y_input: y_batch,
+                    model.mode: True}
 
         adv_dict = {model.x_input: x_batch_adv,
-                    model.y_input: y_batch}
+                    model.y_input: y_batch,
+                    model.mode: True}
 
         # Output to stdout
         if ii % num_output_steps == 0:

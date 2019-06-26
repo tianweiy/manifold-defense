@@ -116,7 +116,8 @@ class L2PGDAttack:
 
         for i in range(self.num_steps):
             grad = sess.run(self.grad, feed_dict={self.model.x_input: x,
-                                                  self.model.y_input: y})
+                                                  self.model.y_input: y,
+                                                  self.model.mode: True})
             # renorm gradients
             renorm_grad = grad / np.reshape(np.linalg.norm(1e-16+np.reshape(grad, (x_nat.shape[0], -1)), axis=-1, keepdims=True), (-1, 1, 1, 1))
             eta = self.step_size * renorm_grad

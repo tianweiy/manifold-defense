@@ -112,7 +112,7 @@ with tf.Session() as sess:
     training_time = 0.0
 
     # Main training loop
-    for ii in range(begin_trining_steps, max_num_training_steps):
+    for ii in range(begin_training_steps, max_num_training_steps):
         x_batch, y_batch = cifar.train_data.get_next_batch(batch_size,
                                                            multiple_passes=True)
         # normal situation:

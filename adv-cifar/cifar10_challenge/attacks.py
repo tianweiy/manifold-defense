@@ -31,6 +31,7 @@ class L2OPAttack:
         self.z1 = tf.Variable(tf.random.uniform(shape), dtype=tf.float32)
         self.z2 = tf.Variable(tf.random.uniform(shape), dtype=tf.float32)
         self.lambda_ = tf.Variable(0.5*tf.ones([shape[0], 1]), dtype=tf.float32)
+        self.model = net
 
         self._build_graph(gan, net)
 
@@ -90,23 +91,19 @@ class L2OPAttack:
                     is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = 1.
                     break
 
-                sess.run(self.opt_step1)
-                sess.run(self.opt_step2)
+                sess.run(self.opt_step1, {model.mode: True})
+                sess.run(self.opt_step2, {model.mode: True})
 
-                # update latent code
-                # sess.run([self.opt_step2])
-                # sess.run(self.opt_step2, feed_dict=feed_dict)
-
-            batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x1)
-            batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x2)
-            is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = sess.run(self.is_adv) * sess.run(self.is_feasible)
+            batch1[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x1, {self.model.mode: True})
+            batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x2, {self.model.mode: True})
+            is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = sess.run(self.is_adv, {model.mode: True}) * sess.run(self.is_feasible, {model.mode: True})
 
         count_valid = tf.reduce_sum(is_valid)
         count_adv, count_feasible = tf.reduce_sum(self.is_adv), tf.reduce_sum(self.is_feasible)  
         
-        print('number of adversarial pairs found:%d\n' % sess.run(count_valid))
-        print('number of adv images:%d\n' % sess.run(count_adv))
-        print('number of feasible images:%d\n' % sess.run(count_feasible))
+        print('number of adversarial pairs found:%d\n' % sess.run(count_valid, {self.model.mode: True}))
+        print('number of adv images:%d\n' % sess.run(count_adv, {self.model.mode: True}))
+        print('number of feasible images:%d\n' % sess.run(count_feasible, {self.model.mode: True}))
 
         return batch1, batch2, is_valid
 
@@ -127,7 +124,7 @@ if __name__ == '__main__':
         print('No model found')
         sys.exit()
 
-    model = Model(mode='eval')
+    model = Model()
 
     saver = tf.train.Saver()
 
