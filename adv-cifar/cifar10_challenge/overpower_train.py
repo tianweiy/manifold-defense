@@ -38,7 +38,8 @@ weight_decay = config['weight_decay']
 data_path = config['data_path']
 momentum = config['momentum']
 batch_size = config['training_batch_size']
-op_weight = config['overpowered_weight']
+op_weight = config['op_weight']
+begin_training_steps = 80000
 
 # Setting up the data and the model
 raw_cifar = cifar10_input.CIFAR10Data(data_path)
@@ -111,11 +112,11 @@ with tf.Session() as sess:
     training_time = 0.0
 
     # Main training loop
-    for ii in range(max_num_training_steps):
+    for ii in range(begin_trining_steps, max_num_training_steps):
         x_batch, y_batch = cifar.train_data.get_next_batch(batch_size,
                                                            multiple_passes=True)
         # normal situation:
-        if ii % 391 == 0:
+        if ii % 400 == 0:
             # overpowered attack:
             batch1, batch2, is_adv = op_attack.perturb(sess)
             op_loss = op_weight * tf.reduce_sum(ce(model._forward(batch1), model._forward(batch2)) * is_adv) / tf.reduce_sum(is_adv)

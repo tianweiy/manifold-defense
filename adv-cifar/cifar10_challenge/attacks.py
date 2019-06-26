@@ -41,8 +41,8 @@ class L2OPAttack:
         self.x1 = gan(self.z1, signature="generator")
         self.x2 = gan(self.z2, signature="generator")
 
-        opt1 = tf.train.MomentumOptimizer(z_lr, 0.9)
-        opt2 = tf.train.MomentumOptimizer(lambda_lr, 0.9)
+        opt1 = tf.train.AdamOptimizer(z_lr)
+        opt2 = tf.train.AdamOptimizer(lambda_lr)
 
         self.distance_mat = tf.norm(tf.reshape(self.x1 - self.x2, (self.x1.shape[0], -1)), axis=-1, keep_dims=False) - EPS * ones
         self.dist = tf.reduce_mean(self.distance_mat)

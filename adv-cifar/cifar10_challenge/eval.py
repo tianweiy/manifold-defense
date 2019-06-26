@@ -18,7 +18,7 @@ import tensorflow as tf
 
 import cifar10_input
 from model import Model
-from pgd_attack import LinfPGDAttack
+from pgd_attack import LinfPGDAttack, L2PGDAttack
 
 # Global constants
 with open('config.json') as config_file:
@@ -44,7 +44,7 @@ if eval_on_cpu:
                            config['loss_func'])
 else:
   model = Model(mode='eval')
-  attack = LinfPGDAttack(model,
+  attack = L2PGDAttack(model,
                          config['epsilon'],
                          config['num_steps'],
                          config['step_size'],
@@ -101,9 +101,9 @@ def evaluate_checkpoint(filename):
                                       [model.num_correct,model.xent],
                                       feed_dict = dict_adv)
 
-      print(eval_batch_size)
-      print("Correctly classified natural examples: {}".format(cur_corr_nat))
-      print("Correctly classified adversarial examples: {}".format(cur_corr_adv))
+      # print(eval_batch_size)
+      # print("Correctly classified natural examples: {}".format(cur_corr_nat))
+      # print("Correctly classified adversarial examples: {}".format(cur_corr_adv))
       total_xent_nat += cur_xent_nat
       total_xent_adv += cur_xent_adv
       total_corr_nat += cur_corr_nat
@@ -129,9 +129,10 @@ def evaluate_checkpoint(filename):
     print('avg adv loss: {:.4f}'.format(avg_xent_adv))
 
 # Infinite eval loop
+"""
 while True:
   cur_checkpoint = tf.train.latest_checkpoint(model_dir)
-
+  print(cur_checkpoint)
   # Case 1: No checkpoint yet
   if cur_checkpoint is None:
     if not already_seen_state:
@@ -160,3 +161,9 @@ while True:
       print('.', end='')
     sys.stdout.flush()
     time.sleep(10)
+"""
+
+for i in range(79000, 80000, 1000):
+    print("Step ", i)
+    cur_checkpoint = "models/l2_advtrain/checkpoint-"+str(i) 
+    evaluate_checkpoint(cur_checkpoint)
