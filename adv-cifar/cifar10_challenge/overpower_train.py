@@ -121,7 +121,9 @@ with tf.Session() as sess:
             batch1, batch2, is_adv = op_attack.perturb(sess)
             op_loss = op_weight * tf.reduce_sum(ce(model._forward(batch1), model._forward(batch2)) * is_adv) / tf.reduce_sum(is_adv)
             op_step = opt.minimize(op_loss)
-            sess.run(op_step)
+
+            # use eval mode for adv pairs training / may need to avoid updating bn stats here
+            sess.run(op_step, {model.mode: False})
 
         # Compute Adversarial Perturbations
         start = timer()
