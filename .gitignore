@@ -5,3 +5,4 @@ env/
 *.txt
 __pycache__/
 results/
+*.npy
