@@ -13,9 +13,9 @@ import tensorflow_hub as hub
 
 embed_feats=128
 BATCH_SIZE = 64
-z_lr=5e-1
-lambda_lr=1e-1
-EPS = 8.0
+z_lr= 2
+lambda_lr=0.05
+EPS = 255
 
 
 def ce(x, y):
@@ -70,7 +70,7 @@ class L2OPAttack:
         self.opt_step2 = opt2.minimize(loss2, var_list=[self.lambda_])
 
     def perturb(self, sess, eps, num_images=64,
-             num_steps=200):
+             num_steps=1000):
 
         batch1 = np.zeros((num_images, 32, 32, 3))
         batch2 = np.zeros((num_images, 32, 32, 3))
@@ -101,8 +101,12 @@ class L2OPAttack:
             batch2[i * BATCH_SIZE:(i + 1) * BATCH_SIZE, ...] = sess.run(self.x2)
             is_valid[i * BATCH_SIZE:(i + 1) * BATCH_SIZE] = sess.run(self.is_adv) * sess.run(self.is_feasible)
 
-        count = tf.reduce_sum(is_valid)
-        print('number of adversarial pairs found:%d\n' % sess.run(count))
+        count_valid = tf.reduce_sum(is_valid)
+        count_adv, count_feasible = tf.reduce_sum(self.is_adv), tf.reduce_sum(self.is_feasible)  
+        
+        print('number of adversarial pairs found:%d\n' % sess.run(count_valid))
+        print('number of adv images:%d\n' % sess.run(count_adv))
+        print('number of feasible images:%d\n' % sess.run(count_feasible))
 
         return batch1, batch2, is_valid
 
