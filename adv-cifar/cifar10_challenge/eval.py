@@ -166,7 +166,7 @@ while True:
 
 """
 
-for i in range(75000, 80000, 1000):
+for i in range(41000, 80000, 1000):
     print("Step ", i)
-    cur_checkpoint = "models/adv_trained/checkpoint-"+str(i) 
+    cur_checkpoint = "models/l2_advtrain/checkpoint-"+str(i) 
     evaluate_checkpoint(cur_checkpoint)
