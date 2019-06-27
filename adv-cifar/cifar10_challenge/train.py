@@ -85,8 +85,11 @@ merged_summaries = tf.summary.merge_all()
 
 # keep the configuration file with the model for reproducibility
 shutil.copy('config.json', model_dir)
+filename = "models/l2_advtrain/checkpoint-24000"
 
 with tf.Session() as sess:
+    saver.restore(sess, filename)
+
     # initialize data augmentation
     cifar = cifar10_input.AugmentedCIFAR10Data(raw_cifar, sess, model)
 
@@ -98,7 +101,7 @@ with tf.Session() as sess:
     training_time = 0.0
 
     # Main training loop
-    for ii in range(max_num_training_steps):
+    for ii in range(24000, max_num_training_steps):
         x_batch, y_batch = cifar.train_data.get_next_batch(batch_size,
                                                            multiple_passes=True)
 
