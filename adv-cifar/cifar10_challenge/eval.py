@@ -43,7 +43,7 @@ if eval_on_cpu:
                            config['random_start'],
                            config['loss_func'])
 else:
-  model = Model(mode='eval')
+  model = Model()
   attack = L2PGDAttack(model,
                          config['epsilon'],
                          config['num_steps'],
@@ -87,12 +87,14 @@ def evaluate_checkpoint(filename):
       y_batch = cifar.eval_data.ys[bstart:bend]
 
       dict_nat = {model.x_input: x_batch,
-                  model.y_input: y_batch}
+                  model.y_input: y_batch,
+                  model.mode: False}
 
       x_batch_adv = attack.perturb(x_batch, y_batch, sess)
 
       dict_adv = {model.x_input: x_batch_adv,
-                  model.y_input: y_batch}
+                  model.y_input: y_batch,
+                  model.mode: False}
 
       cur_corr_nat, cur_xent_nat = sess.run(
                                       [model.num_correct,model.xent],
@@ -128,8 +130,8 @@ def evaluate_checkpoint(filename):
     print('avg nat loss: {:.4f}'.format(avg_xent_nat))
     print('avg adv loss: {:.4f}'.format(avg_xent_adv))
 
-# Infinite eval loop
 """
+# Infinite eval loop
 while True:
   cur_checkpoint = tf.train.latest_checkpoint(model_dir)
   print(cur_checkpoint)
@@ -161,9 +163,10 @@ while True:
       print('.', end='')
     sys.stdout.flush()
     time.sleep(10)
+
 """
 
-for i in range(79000, 80000, 1000):
+for i in range(75000, 80000, 1000):
     print("Step ", i)
-    cur_checkpoint = "models/l2_advtrain/checkpoint-"+str(i) 
+    cur_checkpoint = "models/adv_trained/checkpoint-"+str(i) 
     evaluate_checkpoint(cur_checkpoint)
